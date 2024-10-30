@@ -25,8 +25,3 @@ public struct APIClient {
       .eraseToAnyPublisher()
   }
 }
-
-public extension APIClient {
-  static let live = Self(networkDispatcher: { .live })
-  static let noop = Self(networkDispatcher: { .noop })
-}

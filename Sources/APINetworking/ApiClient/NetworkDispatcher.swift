@@ -59,7 +59,3 @@ extension NetworkDispatcher {
   }
 }
 
-public extension NetworkDispatcher {
-  static let live = Self(urlSession: { .shared })
-  static let noop = Self(urlSession: { URLSession(configuration: .default) })
-}

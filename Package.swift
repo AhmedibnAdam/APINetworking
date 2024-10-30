@@ -5,6 +5,10 @@ import PackageDescription
 
 let package = Package(
     name: "APINetworking",
+    platforms: [
+           .iOS(.v15),  // Minimum target set to iOS 13
+           .macOS(.v10_15)  // You can also specify other platforms if needed
+       ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
