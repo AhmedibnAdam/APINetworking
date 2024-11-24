@@ -3,28 +3,59 @@ import Foundation
 
 /// A client to dispatch network request to URLSession
 public struct NetworkDispatcher {
-  var urlSession: () -> URLSession
-  
-  public init(urlSession: @escaping () -> URLSession) {
-    self.urlSession = urlSession
-  }
-  /// Dispatches an URLRequest and returns a publisher
-  /// - Parameter request: URLRequest
-  /// - Returns: A publisher with the provided decoded data or an error
-  func dispatch(request: URLRequest) -> AnyPublisher<Data, NetworkRequestError> {
-    return urlSession()
-      .dataTaskPublisher(for: request)
-      .tryMap({ data, response in
-        // If the response is invalid, throw an error
-        if let response = response as? HTTPURLResponse,
-           !(200...299).contains(response.statusCode) {
-          throw httpError(response.statusCode)
+    var urlSession: () -> URLSession
+
+    public init(urlSession: @escaping () -> URLSession) {
+        self.urlSession = urlSession
+    }
+
+    /// Dispatches a URLRequest and returns a Combine publisher
+    public func dispatch(request: URLRequest) -> AnyPublisher<Data, NetworkRequestError> {
+        return urlSession()
+            .dataTaskPublisher(for: request)
+            .tryMap { data, response in
+                // Check for HTTP errors
+                if let response = response as? HTTPURLResponse,
+                   !(200...299).contains(response.statusCode) {
+                    throw httpError(response.statusCode)
+                }
+                return data
+            }
+            .mapError { error in handleError(error) }
+            .eraseToAnyPublisher()
+    }
+
+    /// Dispatches a URLRequest asynchronously using async/await
+   public func dispatchAsync(request: URLRequest) async throws -> Data {
+        let (data, response) = try await urlSession().data(for: request)
+
+        // Check for HTTP errors
+        if let httpResponse = response as? HTTPURLResponse,
+           !(200...299).contains(httpResponse.statusCode) {
+            throw httpError(httpResponse.statusCode)
         }
+
         return data
-      })
-      .mapError { error in handleError(error) }
-      .eraseToAnyPublisher()
-  }
+    }
+}
+
+public extension NetworkDispatcher {
+    /// Dispatches a URLRequest and bridges to Combine using Future
+    @MainActor func dispatchWithCombine(request: URLRequest) -> AnyPublisher<Data, NetworkRequestError> {
+        Future { promise in
+            Task {
+                do {
+                    let data = try await self.dispatchAsync(request: request)
+                    promise(.success(data))
+                } catch let error as NetworkRequestError {
+                    promise(.failure(error))
+                } catch {
+                    promise(.failure(.unknownError))
+                }
+            }
+        }
+        .eraseToAnyPublisher()
+    }
 }
 
 extension NetworkDispatcher {

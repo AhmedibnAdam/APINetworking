@@ -1,27 +1,33 @@
 import Combine
 import Foundation
 
-/// A Client to dispatch network calls
 public struct APIClient {
-  var networkDispatcher: () -> NetworkDispatcher
-  
-  public init(networkDispatcher: @escaping () -> NetworkDispatcher) {
-    self.networkDispatcher = networkDispatcher
-  }
-  
-  /// Dispatches a Request and returns a publisher
-  /// - Parameter request: Request to Dispatch
-  /// - Returns: A publisher containing decoded data or an error
-  public func dispatch<R: APIRequest>(_ request: R) -> AnyPublisher<Data, NetworkRequestError> {
-    guard let urlRequest = try? request.makeRequest() else {
-      return Fail(
-        outputType: Data.self,
-        failure: NetworkRequestError.badRequest
-      )
-      .eraseToAnyPublisher()
+    var networkDispatcher: () -> NetworkDispatcher
+
+    public init(networkDispatcher: @escaping () -> NetworkDispatcher) {
+        self.networkDispatcher = networkDispatcher
     }
-    return networkDispatcher()
-      .dispatch(request: urlRequest)
-      .eraseToAnyPublisher()
-  }
+
+    /// Dispatches a Request and returns a Combine publisher
+    public func dispatch<R: APIRequest>(_ request: R) -> AnyPublisher<Data, NetworkRequestError> {
+        guard let urlRequest = try? request.makeRequest() else {
+            return Fail(
+                outputType: Data.self,
+                failure: NetworkRequestError.badRequest
+            )
+            .eraseToAnyPublisher()
+        }
+        return networkDispatcher()
+            .dispatch(request: urlRequest)
+            .eraseToAnyPublisher()
+    }
+
+    /// Dispatches a Request asynchronously using async/await
+    public func dispatchAsync<R: APIRequest>(_ request: R) async throws -> Data {
+        guard let urlRequest = try? request.makeRequest() else {
+            throw NetworkRequestError.badRequest
+        }
+        return try await networkDispatcher()
+            .dispatchAsync(request: urlRequest)
+    }
 }
